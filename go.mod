@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/argoproj/argo-cd/v2 v2.5.0
 	github.com/argoproj/argo-workflows/v3 v3.3.5
-	github.com/magiconair/properties v1.8.5
+	github.com/magiconair/properties v1.8.6
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 )
 
