@@ -3,6 +3,9 @@ package argocd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path"
 
 	"github.com/argoproj/argo-cd/v2/controller"
 	"github.com/argoproj/argo-cd/v2/pkg/apiclient/application"
@@ -12,6 +15,7 @@ import (
 	"github.com/argoproj/gitops-engine/pkg/sync/hook"
 	"github.com/argoproj/gitops-engine/pkg/sync/ignore"
 	"github.com/argoproj/gitops-engine/pkg/utils/kube"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -120,4 +124,54 @@ func groupObjsForDiff(resources *application.ManagedResourcesResponse, objs map[
 		items = append(items, objKeyLiveTarget{key, nil, local})
 	}
 	return items, nil
+}
+
+// GetDiff gets a diff between two unstructured objects to stdout using an external diff utility
+func GetDiff(name string, live *unstructured.Unstructured, target *unstructured.Unstructured) (string, error) {
+	tempDir, err := os.MkdirTemp("", "argocd-diff")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			fmt.Printf("Failed to delete temp dir %s: %v\n", tempDir, err)
+		}
+	}()
+	targetFile := path.Join(tempDir, name)
+	targetData := []byte("")
+	if target != nil {
+		targetData, err = yaml.Marshal(target)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = os.WriteFile(targetFile, targetData, 0644)
+	if err != nil {
+		return "", err
+	}
+	liveFile := path.Join(tempDir, fmt.Sprintf("%s-live.yaml", name))
+	liveData := []byte("")
+	if live != nil {
+		liveData, err = yaml.Marshal(live)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = os.WriteFile(liveFile, liveData, 0644)
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command("diff", liveFile, targetFile)
+	out, err := cmd.Output()
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			if exitError.ExitCode() == 1 {
+				return string(out), nil
+			}
+			return "", fmt.Errorf("diff command failed with exit code %d: %v", exitError.ExitCode(), err)
+		}
+		return "", fmt.Errorf("diff command failed: %v", err)
+	}
+	return "", nil
 }

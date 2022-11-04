@@ -19,8 +19,6 @@ import (
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"github.com/argoproj/argo-workflows/v3/pkg/plugins/executor"
 	"github.com/argoproj/gitops-engine/pkg/sync/hook"
-	"github.com/sergi/go-diff/diffmatchpatch"
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
 
@@ -214,28 +212,23 @@ func syncAppsParallel(action SyncAction, timeout string, appClient application.A
 	return nil
 }
 
-type diffResult struct {
-	FoundDiff bool   `json:"foundDiff"`
-	Diff      string `json:"diff"`
-}
-
-func diffApp(action DiffAction, timeout string, appClient application.ApplicationServiceClient, settingsClient settings.SettingsServiceClient) (*diffResult, error) {
+func diffApp(action DiffAction, timeout string, appClient application.ApplicationServiceClient, settingsClient settings.SettingsServiceClient) (string, error) {
 	ctx, cancel, err := durationStringToContext(timeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed get action context: %w", err)
+		return "", fmt.Errorf("failed get action context: %w", err)
 	}
 	defer cancel()
 	app, err := appClient.Get(context.Background(), &application.ApplicationQuery{Name: &action.App.Name, Refresh: getRefreshType(action.Refresh, action.HardRefresh)})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get application: %w", err)
+		return "", fmt.Errorf("failed to get application: %w", err)
 	}
 	resources, err := appClient.ManagedResources(context.Background(), &application.ResourcesQuery{ApplicationName: &action.App.Name})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get managed resources for app: %w", err)
+		return "", fmt.Errorf("failed to get managed resources for app: %w", err)
 	}
 	liveObjs, err := liveObjects(resources.Items)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get live objects: %w", err)
+		return "", fmt.Errorf("failed to get live objects: %w", err)
 	}
 
 	res, err := appClient.GetManifests(ctx, &application.ApplicationManifestQuery{
@@ -244,35 +237,32 @@ func diffApp(action DiffAction, timeout string, appClient application.Applicatio
 		Revision:     pointer.String(action.Revision),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to diff app: %w", err)
+		return "", fmt.Errorf("failed to diff app: %w", err)
 	}
 
 	var unstructureds []*unstructured.Unstructured
 	for _, manifest := range res.Manifests {
 		obj, err := v1alpha1.UnmarshalToUnstructured(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal manifest to unstructured: %w", err)
+			return "", fmt.Errorf("failed to unmarshal manifest to unstructured: %w", err)
 		}
 		unstructureds = append(unstructureds, obj)
 	}
 	groupedObjs, err := groupObjsByKey(unstructureds, liveObjs, app.Spec.Destination.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("failed to group objects by key: %w", err)
+		return "", fmt.Errorf("failed to group objects by key: %w", err)
 	}
 
 	argoSettings, err := settingsClient.Get(context.Background(), &settings.SettingsQuery{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get argo settings: %w", err)
+		return "", fmt.Errorf("failed to get argo settings: %w", err)
 	}
 
 	items, err := groupObjsForDiff(resources, groupedObjs, []objKeyLiveTarget{}, argoSettings, action.App.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to group objects for diff: %w", err)
+		return "", fmt.Errorf("failed to group objects for diff: %w", err)
 	}
 
-	fmt.Println("items", items)
-
-	foundDiffs := false
 	diff := ""
 	for _, item := range items {
 		if item.target != nil && hook.IsHook(item.target) || item.live != nil && hook.IsHook(item.live) {
@@ -293,12 +283,12 @@ func diffApp(action DiffAction, timeout string, appClient application.Applicatio
 			WithNoCache().
 			Build()
 		if err != nil {
-			return nil, fmt.Errorf("failed to build diff config: %w", err)
+			return "", fmt.Errorf("failed to build diff config: %w", err)
 		}
 
 		diffRes, err := argodiff.StateDiff(item.live, item.target, diffConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build state diff: %w", err)
+			return "", fmt.Errorf("failed to build state diff: %w", err)
 		}
 
 		if diffRes.Modified || item.target == nil || item.live == nil {
@@ -311,45 +301,21 @@ func diffApp(action DiffAction, timeout string, appClient application.Applicatio
 				live = item.live
 				err = json.Unmarshal(diffRes.PredictedLive, target)
 				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal predicted live: %w", err)
+					return "", fmt.Errorf("failed to unmarshal predicted live: %w", err)
 				}
 			} else {
 				live = item.live
 				target = item.target
 			}
 
-			foundDiffs = true
-			diff, err = getDiff(live, target)
+			diff, err = GetDiff(action.App.Name, live, target)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get diff: %w", err)
+				return "", fmt.Errorf("failed to get diff: %w", err)
 			}
 		}
 	}
 
-	return &diffResult{FoundDiff: foundDiffs, Diff: diff}, nil
-}
-
-func getDiff(live, target *unstructured.Unstructured) (diff string, err error) {
-	targetData := []byte("")
-	if target != nil {
-		targetData, err = yaml.Marshal(target)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal target: %w", err)
-		}
-	}
-	liveData := []byte("")
-	if live != nil {
-		liveData, err = yaml.Marshal(live)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal live: %w", err)
-		}
-	}
-
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(string(liveData), string(targetData), false)
-	patch := dmp.PatchMake(diffs)
-
-	return dmp.PatchToText(patch), nil
+	return diff, nil
 }
 
 // durationStringToContext parses a duration string and returns a context and cancel function. If timeout is empty, the
