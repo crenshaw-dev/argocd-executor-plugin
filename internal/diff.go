@@ -127,7 +127,7 @@ func groupObjsForDiff(resources *application.ManagedResourcesResponse, objs map[
 }
 
 // GetDiff gets a diff between two unstructured objects to stdout using an external diff utility
-func GetDiff(name string, live *unstructured.Unstructured, target *unstructured.Unstructured) (string, error) {
+func GetDiff(live *unstructured.Unstructured, target *unstructured.Unstructured) (string, error) {
 	tempDir, err := os.MkdirTemp("", "argocd-diff")
 	if err != nil {
 		return "", err
