@@ -21,12 +21,6 @@ spec:
                   - name: guestbook
       - - name: diff
           template: diff
-      - - name: print
-          template: print
-          arguments:
-            parameters:
-            - name: diff
-              value: "{{steps.diff.outputs.result}}"
     - name: sync
       inputs:
         parameters:

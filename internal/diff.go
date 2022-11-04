@@ -154,7 +154,7 @@ func GetDiff(name string, live *unstructured.Unstructured, target *unstructured.
 	if err != nil {
 		return "", err
 	}
-	liveFile, err := os.CreateTemp(tempDir, name)
+	liveFile, err := os.CreateTemp(tempDir, "live")
 	if err != nil {
 		return "", err
 	}
