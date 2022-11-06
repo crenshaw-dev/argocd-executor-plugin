@@ -1,5 +1,6 @@
 # Argo CD Executor Plugin
 
+[![codecov](https://codecov.io/gh/crenshaw-dev/argocd-executor-plugin/branch/main/graph/badge.svg?token=SJN00EHK79)](https://codecov.io/gh/crenshaw-dev/argocd-executor-plugin)
 
 An [Executor Plugin](https://github.com/argoproj/argo-workflows/blob/master/docs/executor_plugins.md) for 
 Argo Workflows that lets you interact with Argo CD servers. All you need is an Argo CD API token.
