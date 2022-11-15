@@ -265,10 +265,11 @@ func diffApp(action DiffAction, timeout string, appClient application.Applicatio
 				target = item.target
 			}
 
-			diff, err = GetDiff(live, target)
+			newDiff, err := GetDiff(live, target)
 			if err != nil {
 				return "", fmt.Errorf("failed to get diff: %w", err)
 			}
+			diff += newDiff
 		}
 	}
 
