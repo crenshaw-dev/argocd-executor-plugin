@@ -18,10 +18,10 @@ data:
     resources:
       limits:
         cpu: 200m
-        memory: 64Mi
+        memory: 512Mi
       requests:
         cpu: 100m
-        memory: 32Mi
+        memory: 256Mi
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
