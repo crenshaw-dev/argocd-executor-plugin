@@ -12,7 +12,6 @@ data:
     - name: ARGOCD_SERVER
       value: argocd-server.argocd.svc.cluster.local
     image: crenshawdotdev/argocd-executor-plugin:v0.0.8
-    imagePullPolicy: Never
     name: argocd
     ports:
     - containerPort: 3000
