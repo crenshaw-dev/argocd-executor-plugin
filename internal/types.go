@@ -22,6 +22,12 @@ type DiffAction struct {
 	Revision    string `json:"revision,omitempty"`
 	Refresh     bool   `json:"refresh,omitempty"`
 	HardRefresh bool   `json:"hardRefresh,omitempty"`
+	DiffOptions `json:"diffOptions,omitempty"`
+}
+
+type DiffOptions struct {
+	CopiedContextLines string `json:"copiedContextLines,omitempty"`
+	IgnoreBlankLines   bool   `json:"ignoreBlankLines,omitempty"`
 }
 
 // SyncAction describes an action that triggers an argocd sync.
