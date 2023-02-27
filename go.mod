@@ -6,7 +6,7 @@ require (
 	github.com/argoproj/argo-cd/v2 v2.5.0
 	github.com/argoproj/argo-workflows/v3 v3.4.3
 	github.com/argoproj/gitops-engine v0.7.1-0.20221004132320-98ccd3d43fd9
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.2
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.24.3
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
